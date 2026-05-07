@@ -35,7 +35,11 @@ import {
     setManualVisualModeOverride,
     setWordSyncEnabled,
     setDebugTimingEnabled,
-    setPixelScrollSpeed
+    setPixelScrollSpeed,
+    setHasWordSync,
+    setWordSyncedLyrics,
+    setHasLineSync,
+    setLineSyncedLyrics
 } from './modules/state.js';
 
 // Utils (Level 1)
@@ -511,8 +515,20 @@ async function updateLoop() {
             lastTrackId = trackId;
             maConfirmedPause = false;  // Re-assume playing for new track
             
-            // Clear cached lyrics immediately so old lyrics don't bleed into new track
-            window._lastFetchedLyricsData = null;
+            // CRITICAL FIX: Fully clear all animation state immediately
+            setHasWordSync(false);
+            setWordSyncedLyrics(null);
+            setHasLineSync(false);
+            setLineSyncedLyrics(null);
+
+            // Clear cached lyrics and inject a dummy 'Loading' payload with has_lyrics=true.
+            // This instantly wipes the DOM on the next poll step and prevents the Visual Mode
+            // 6-second timer from accidentally triggering before the real lyrics arrive.
+            window._lastFetchedLyricsData = {
+                has_lyrics: true,
+                is_instrumental: false,
+                lyrics: ['', '', 'Loading lyrics...', '', '', '']
+            };
 
             // Reset visual mode on track change
             resetVisualModeState();
