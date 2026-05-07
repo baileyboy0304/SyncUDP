@@ -634,10 +634,30 @@ async def current_track() -> dict:
             if is_configured():
                 ma_meta = await MusicAssistantSource(target_player_id=ma_player_id).get_metadata()
                 if ma_meta:
+                    # Timeline fields: always override from MA (more accurate than recognition engine)
                     for key in ("position", "duration_ms", "is_playing"):
                         value = ma_meta.get(key)
                         if value is not None:
                             scoped[key] = value
+                    
+                    # Track identity fields: override from MA so the frontend sees
+                    # track changes instantly instead of waiting 10-15s for the
+                    # recognition engine to re-identify audio it already knew was next.
+                    # Only apply if MA has a valid track (artist + title both present).
+                    ma_artist = ma_meta.get("artist")
+                    ma_title = ma_meta.get("title")
+                    if ma_artist and ma_title:
+                        scoped["artist"] = ma_artist
+                        scoped["artist_name"] = ma_meta.get("artist_name") or ma_artist
+                        scoped["title"] = ma_title
+                        scoped["album"] = ma_meta.get("album") or scoped.get("album")
+                        scoped["track_id"] = ma_meta.get("track_id") or scoped.get("track_id")
+                        scoped["ma_item_id"] = ma_meta.get("ma_item_id")
+                        # Use MA album art if available (recognition engine art may be stale)
+                        ma_art = ma_meta.get("album_art_url")
+                        if ma_art:
+                            scoped["album_art_url"] = ma_art
+                            scoped["album_art"] = ma_art
                 else:
                     # MA configured but state unknown — send null so the frontend
                     # preserves its current animation/icon state rather than
