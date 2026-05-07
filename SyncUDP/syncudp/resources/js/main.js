@@ -277,8 +277,10 @@ let outroVisualModeTimer = null;
  * Called when lyrics.prev-1 shows "End"
  * 
  * @param {Object|Array} lyricsData - Lyrics data from API
+ * @param {string} trackId - Current track ID (used to scope outro to correct track)
  */
-function checkForLineSyncOutro(lyricsData) {
+let outroScopedTrackId = null; // Track ID the current outro detection is scoped to
+function checkForLineSyncOutro(lyricsData, trackId) {
     if (!visualModeConfig.enabled) return;
     if (visualModeActive) return; // Already in visual mode
 
@@ -289,10 +291,26 @@ function checkForLineSyncOutro(lyricsData) {
         lyrics[1] === 'End';
 
     if (isOutro && !outroVisualModeTriggered) {
+        // Guard: Only trigger outro if the current track has had real lyrics loaded.
+        // The dummy 'Loading lyrics...' payload has has_lyrics=true but no 'End' marker,
+        // so this guard mainly protects against stale data from an old track.
+        if (outroScopedTrackId && outroScopedTrackId !== trackId) {
+            // Stale outro data from a different track — ignore it
+            return;
+        }
+
         console.log(`[Main] Line-sync outro detected, scheduling visual mode in ${OUTRO_VISUAL_MODE_DELAY_SEC}s`);
         outroVisualModeTriggered = true;
+        outroScopedTrackId = trackId;
 
+        const outroTrackId = trackId; // Capture for closure
         outroVisualModeTimer = setTimeout(() => {
+            // Double-check the track hasn't changed during the delay
+            const currentTrackId = lastTrackInfo?.track_id;
+            if (currentTrackId && currentTrackId !== outroTrackId) {
+                console.log('[Main] Line-sync outro delay elapsed but track changed, aborting visual mode');
+                return;
+            }
             if (!visualModeActive) {
                 console.log('[Main] Line-sync outro delay elapsed, entering visual mode');
                 enterVisualMode();
@@ -301,6 +319,7 @@ function checkForLineSyncOutro(lyricsData) {
     } else if (!isOutro && outroVisualModeTriggered) {
         // Reset if no longer in outro (e.g., seeked back)
         outroVisualModeTriggered = false;
+        outroScopedTrackId = null;
         if (outroVisualModeTimer) {
             clearTimeout(outroVisualModeTimer);
             outroVisualModeTimer = null;
@@ -311,6 +330,7 @@ function checkForLineSyncOutro(lyricsData) {
 // Reset outro state on track change (called from updateLoop when track changes)
 function resetOutroState() {
     outroVisualModeTriggered = false;
+    outroScopedTrackId = null;
     if (outroVisualModeTimer) {
         clearTimeout(outroVisualModeTimer);
         outroVisualModeTimer = null;
@@ -416,6 +436,9 @@ async function updateLoop() {
 
         // Fetch track info first so UI updates immediately without waiting for lyrics
         const trackInfo = await getCurrentTrack();
+        // Update lastTrackInfo IMMEDIATELY so the stale-discard guard in getLyrics
+        // can always compare against the current track when async responses arrive.
+        setLastTrackInfo(trackInfo);
 
         // Fetch lyrics asynchronously so it doesn't block the UI update loop
         if (!window._isFetchingLyrics) {
@@ -667,8 +690,8 @@ async function updateLoop() {
             resetSpectrum();
         }
 
-        // Update track info (must happen before icon update)
-        setLastTrackInfo(trackInfo);
+        // Update track info — already set at top of loop for stale-discard guard,
+        // but referenced here for clarity (no-op, trackInfo hasn't changed).
 
         // Apply background style with priority: Saved Preference > URL Params > Default
         // Only apply saved style if user has opted-in to art background via URL or settings
@@ -760,7 +783,7 @@ async function updateLoop() {
         checkForVisualMode(data, trackId);
 
         // Check for line-sync outro (triggers visual mode after 6s delay)
-        checkForLineSyncOutro(data);
+        checkForLineSyncOutro(data, trackId);
 
         // Track confirmed MA state to inform the heuristic above
         if (trackInfo.is_playing === false) {

@@ -46,7 +46,8 @@ import {
     setLineSyncedLyrics,
     setHasLineSync,
     selectedPlayer,
-    effectivePlayer
+    effectivePlayer,
+    lastTrackInfo
 } from './state.js';
 import { isLatencyBeingAdjusted } from './latency.js';
 
