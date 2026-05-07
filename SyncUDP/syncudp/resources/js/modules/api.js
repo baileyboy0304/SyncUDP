@@ -401,7 +401,15 @@ export async function getLyrics(updateBackgroundFn, updateThemeColorFn, updatePr
 
         // Discard stale responses if the track changed while the request was in-flight
         if (expectedTrackId && lastTrackInfo && lastTrackInfo.track_id && lastTrackInfo.track_id !== expectedTrackId) {
-            console.log('[API] Discarding stale lyrics fetch result');
+            console.log('[API] Discarding stale lyrics fetch result (track changed during flight)');
+            return null;
+        }
+
+        // Discard lyrics that belong to a DIFFERENT track than what the frontend
+        // expects.  This happens when the recognition engine is still returning
+        // lyrics for the old track while MA has already reported the new one.
+        if (expectedTrackId && data.track_id && data.track_id !== expectedTrackId) {
+            console.log(`[API] Discarding stale lyrics: server returned for ${data.track_id}, expected ${expectedTrackId}`);
             return null;
         }
 

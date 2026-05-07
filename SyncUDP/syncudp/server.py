@@ -374,6 +374,16 @@ async def _build_lyrics_response(player_scope: Optional[str]) -> dict:
             _instrumental_markers_cache['key'] = cache_key
             _instrumental_markers_cache['markers'] = instrumental_markers
 
+    # Include track_id so the frontend can detect stale lyrics from the
+    # recognition engine (which lags behind MA's instant track identity).
+    lyrics_track_id = None
+    if metadata:
+        from system_utils.helpers import _normalize_track_id
+        a = metadata.get("artist", "")
+        t = metadata.get("title", "")
+        if a and t:
+            lyrics_track_id = _normalize_track_id(a, t)
+
     return {
         "lyrics": list(lyrics_data),
         "colors": colors,
@@ -390,7 +400,9 @@ async def _build_lyrics_response(player_scope: Optional[str]) -> dict:
         # Instrumental markers for gap detection (timestamps where ♪ appears in line-sync)
         "instrumental_markers": instrumental_markers if instrumental_markers else None,
         # Line-synced lyrics timing data for smooth frontend animation
-        "line_synced_lyrics": line_synced_lyrics
+        "line_synced_lyrics": line_synced_lyrics,
+        # Track ID the lyrics belong to (frontend discards if it doesn't match current track)
+        "track_id": lyrics_track_id
     }
 
 def _get_player_manager_if_running():
@@ -653,6 +665,12 @@ async def current_track() -> dict:
                         scoped["album"] = ma_meta.get("album") or scoped.get("album")
                         scoped["track_id"] = ma_meta.get("track_id") or scoped.get("track_id")
                         scoped["ma_item_id"] = ma_meta.get("ma_item_id")
+                        # Clear stale artist_id from recognition engine. MA doesn't
+                        # provide Spotify artist_id, and keeping the old one causes
+                        # the frontend to detect a false artist change when the
+                        # recognition engine eventually catches up with its own
+                        # artist_id, leading to slideshow images mixing.
+                        scoped["artist_id"] = None
                         # Use MA album art if available (recognition engine art may be stale)
                         ma_art = ma_meta.get("album_art_url")
                         if ma_art:
