@@ -922,6 +922,9 @@ class MusicAssistantSource(BaseMetadataSource):
                     },
                     # Absolute index in the full queue (for play-from-here)
                     "queue_index": current_index + 1 + i,
+                    # Unique item ID — more reliable than positional index in
+                    # recent MA server versions where play_index accepts either.
+                    "queue_item_id": getattr(item, 'queue_item_id', None),
                 })
             
             return {
@@ -933,27 +936,45 @@ class MusicAssistantSource(BaseMetadataSource):
             logger.debug(f"Music Assistant get_queue failed: {e}")
             return None
 
-    async def play_queue_item(self, queue_index: int) -> bool:
-        """Jump to a specific index in the queue and start playing."""
+    async def play_queue_item(self, queue_index: int, queue_item_id: Optional[str] = None) -> bool:
+        """Jump to a specific item in the queue and start playing.
+
+        Prefers ``queue_item_id`` (a stable string UUID) over the integer
+        positional ``queue_index`` because recent MA server versions accept
+        either form and the ID is immune to mid-playback queue reordering.
+        """
         if not await _ensure_connected():
             return False
         try:
             queue_id = await self._resolve_queue_id()
             if not queue_id:
-                return False
-            try:
-                await _client.player_queues.play_index(queue_id, queue_index)
-            except AttributeError:
-                # Older client builds: fall back to raw command
-                await _client.send_command(
-                    "player_queues/play_index",
-                    queue_id=queue_id,
-                    index=queue_index,
+                logger.warning(
+                    "MA play_queue_item: could not resolve queue_id for target=%r",
+                    self._target_player_id,
                 )
-            logger.info("MA play_queue_item: queue_id=%r index=%d", queue_id, queue_index)
+                return False
+            # queue_item_id (string) is preferred; integer index is the fallback.
+            item_ref = queue_item_id if queue_item_id else queue_index
+            try:
+                await _client.player_queues.play_index(queue_id, item_ref)
+            except AttributeError:
+                # Older client builds: fall back to raw WebSocket command.
+                cmd_kwargs: dict = {"queue_id": queue_id}
+                if queue_item_id:
+                    cmd_kwargs["queue_item_id"] = queue_item_id
+                else:
+                    cmd_kwargs["index"] = queue_index
+                await _client.send_command("player_queues/play_index", **cmd_kwargs)
+            logger.info(
+                "MA play_queue_item: queue_id=%r index=%d item_id=%r",
+                queue_id, queue_index, queue_item_id,
+            )
             return True
         except Exception as e:
-            logger.debug(f"Music Assistant play_queue_item failed: {e}")
+            logger.warning(
+                "MA play_queue_item failed: queue_id=%r index=%d item_id=%r error=%s",
+                None, queue_index, queue_item_id, e,
+            )
             return False
 
     # === Favorites (Like) Support ===
