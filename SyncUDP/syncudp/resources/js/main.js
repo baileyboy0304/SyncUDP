@@ -420,9 +420,13 @@ async function updateLoop() {
         // Fetch lyrics asynchronously so it doesn't block the UI update loop
         if (!window._isFetchingLyrics) {
             window._isFetchingLyrics = true;
-            getLyrics(updateBackground, updateThemeColor, updateProviderDisplay)
+            const fetchingTrackId = trackInfo.track_id;
+            getLyrics(updateBackground, updateThemeColor, updateProviderDisplay, fetchingTrackId)
                 .then(fetchedData => {
-                    window._lastFetchedLyricsData = fetchedData;
+                    // Only apply data if it wasn't discarded as stale
+                    if (fetchedData !== null) {
+                        window._lastFetchedLyricsData = fetchedData;
+                    }
                 })
                 .catch(err => console.error('[Main] Lyrics fetch error:', err))
                 .finally(() => {

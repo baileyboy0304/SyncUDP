@@ -390,12 +390,19 @@ export async function getCurrentTrack() {
  * @param {Function} updateBackgroundFn - Callback to update background
  * @param {Function} updateThemeColorFn - Callback to update theme color
  * @param {Function} updateProviderDisplayFn - Callback to update provider display
+ * @param {string} expectedTrackId - The track ID these lyrics are expected to belong to
  * @returns {Promise<Object>} Lyrics data or null
  */
-export async function getLyrics(updateBackgroundFn, updateThemeColorFn, updateProviderDisplayFn) {
+export async function getLyrics(updateBackgroundFn, updateThemeColorFn, updateProviderDisplayFn, expectedTrackId) {
     try {
         let response = await fetch(withPlayerScope('/lyrics'));
         let data = await response.json();
+
+        // Discard stale responses if the track changed while the request was in-flight
+        if (expectedTrackId && lastTrackInfo && lastTrackInfo.track_id && lastTrackInfo.track_id !== expectedTrackId) {
+            console.log('[API] Discarding stale lyrics fetch result');
+            return null;
+        }
 
         // Update background if colors are present
         if (data.colors) {
