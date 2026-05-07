@@ -426,8 +426,6 @@ async function updateLoop() {
                 });
         }
 
-        const data = window._lastFetchedLyricsData || null;
-
         setLastCheckTime(Date.now());
 
         // Inform the player selector which player the server is currently
@@ -630,6 +628,10 @@ async function updateLoop() {
                 fetchAndRenderQueue();
             }
         }
+
+        // Now that track change is handled and stale lyrics are cleared,
+        // we can safely pull the latest fetched lyrics data for rendering.
+        const data = window._lastFetchedLyricsData || null;
 
         // Detect source change (e.g., Spicetify -> MusicBee)
         // Reset waveform/spectrum since audio analysis data changes
