@@ -400,7 +400,7 @@ export async function getLyrics(updateBackgroundFn, updateThemeColorFn, updatePr
         let data = await response.json();
 
         // Discard stale responses if the track changed while the request was in-flight
-        if (expectedTrackId && lastTrackInfo && lastTrackInfo.track_id && lastTrackInfo.track_id !== expectedTrackId) {
+        if (expectedTrackId && lastTrackInfo && lastTrackInfo.normalized_track_id && lastTrackInfo.normalized_track_id !== expectedTrackId) {
             console.log('[API] Discarding stale lyrics fetch result (track changed during flight)');
             return null;
         }
@@ -481,19 +481,24 @@ export async function getLyrics(updateBackgroundFn, updateThemeColorFn, updatePr
 /**
  * Fetch artist images from backend
  * 
- * @param {string} artistId - Spotify artist ID (optional - backend uses artist name from current track)
+ * @param {string} artistId - Spotify artist ID (optional)
  * @param {boolean} includeMetadata - If true, return full object with metadata and preferences
+ * @param {string} artistName - Explicit artist name to fetch images for (prioritized over backend current track)
  * @returns {Promise<Array<string>|Object>} URL array (default) or full response object (if includeMetadata)
  */
-export async function fetchArtistImages(artistId, includeMetadata = false) {
-    // Note: artistId is optional - backend gets artist name from current track metadata
-    // artistId is only used for Spotify API fallback, other sources use artist name
+export async function fetchArtistImages(artistId, includeMetadata = false, artistName = null) {
+    // Note: artistName overrides the backend's current track metadata.
+    // This is critical during track transitions where the frontend knows the new artist
+    // from Music Assistant, but the backend's audio recognition is still lagging.
 
     try {
         // Build URL with optional artist_id param
         const params = new URLSearchParams();
         if (artistId) {
             params.set('artist_id', artistId);
+        }
+        if (artistName) {
+            params.set('artist_name', artistName);
         }
         if (includeMetadata) {
             params.set('include_metadata', 'true');

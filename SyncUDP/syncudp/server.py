@@ -2788,6 +2788,7 @@ async def get_spotify_browser_token():
 async def get_artist_images():
     """Get artist images from local DB, optionally including metadata and slideshow preferences."""
     artist_id = request.args.get('artist_id')
+    artist_name_param = request.args.get('artist_name')
     include_metadata = request.args.get('include_metadata', 'false').lower() == 'true'
     player_scope = _player_name_from_request()
 
@@ -2800,11 +2801,13 @@ async def get_artist_images():
         if hint_token is not None:
             system_state.metadata_player_hint.reset(hint_token)
 
-    artist_name = metadata.get('artist') if metadata else None
+    # Use explicit frontend artist_name if provided (bypasses lagging recognition metadata)
+    artist_name = artist_name_param or (metadata.get('artist') if metadata else None)
+    
     if not artist_name:
         return jsonify({"images": [], "count": 0, "artist_name": None})
 
-    if metadata and metadata.get('artist_id'):
+    if metadata and metadata.get('artist_id') and not artist_id:
         artist_id = metadata.get('artist_id')
 
     from system_utils import ensure_artist_image_db

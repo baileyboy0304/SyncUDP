@@ -437,15 +437,26 @@ async function updateLoop() {
 
         // Fetch track info first so UI updates immediately without waiting for lyrics
         const trackInfo = await getCurrentTrack();
+        
+        // Get track ID (normalized if track_id is missing)
+        let trackId;
+        if (trackInfo.track_id && trackInfo.track_id.trim()) {
+            trackId = trackInfo.track_id.trim();
+        } else {
+            const artist = (trackInfo.artist || '').trim();
+            const title = (trackInfo.title || '').trim();
+            trackId = normalizeTrackId(artist, title);
+        }
+        
         // Update lastTrackInfo IMMEDIATELY so the stale-discard guard in getLyrics
         // can always compare against the current track when async responses arrive.
-        setLastTrackInfo(trackInfo);
+        // We also attach the normalized trackId to lastTrackInfo for reliability.
+        setLastTrackInfo({...trackInfo, normalized_track_id: trackId});
 
         // Fetch lyrics asynchronously so it doesn't block the UI update loop
         if (!window._isFetchingLyrics) {
             window._isFetchingLyrics = true;
-            const fetchingTrackId = trackInfo.track_id;
-            getLyrics(updateBackground, updateThemeColor, updateProviderDisplay, fetchingTrackId)
+            getLyrics(updateBackground, updateThemeColor, updateProviderDisplay, trackId)
                 .then(fetchedData => {
                     // Only apply data if it wasn't discarded as stale
                     if (fetchedData !== null) {
@@ -523,16 +534,6 @@ async function updateLoop() {
             isIdleState = false;
             idleStartTime = null;
             currentPollInterval = updateInterval;
-        }
-
-        // Get track ID
-        let trackId;
-        if (trackInfo.track_id && trackInfo.track_id.trim()) {
-            trackId = trackInfo.track_id.trim();
-        } else {
-            const artist = (trackInfo.artist || '').trim();
-            const title = (trackInfo.title || '').trim();
-            trackId = normalizeTrackId(artist, title);
         }
 
         // Detect track change
@@ -614,8 +615,9 @@ async function updateLoop() {
                     // Capture artist info at fetch time to detect stale responses
                     const artistIdAtFetch = trackInfo.artist_id;
                     const artistNameAtFetch = trackInfo.artist;
-                    // Fetch with metadata so modal has resolution data available
-                    fetchArtistImages(trackInfo.artist_id, true).then(data => {
+                    // Fetch with metadata so modal has resolution data available.
+                    // Pass artistName explicitly so server doesn't fall back to its lagging recognition engine metadata.
+                    fetchArtistImages(trackInfo.artist_id, true, trackInfo.artist).then(data => {
                         // Guard: Discard stale response if artist changed during fetch
                         // Use artist_id if available, otherwise compare artist name
                         const currentArtistId = lastTrackInfo?.artist_id;
