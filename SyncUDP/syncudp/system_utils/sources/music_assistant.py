@@ -638,7 +638,7 @@ class MusicAssistantSource(BaseMetadataSource):
             # Only return None if IDLE and STALE (prevents 688min bug from old sessions)
             # When just paused, queue.state=idle but elapsed_time_last_updated is fresh
             if queue_state == "idle" and is_stale:
-                return None
+                return {"is_playing": False, "source": "music_assistant"}
             
             # Use player.playback_state for is_playing (it updates faster than queue.state)
             # Logs showed player goes playing→idle→playing faster than queue
@@ -647,7 +647,7 @@ class MusicAssistantSource(BaseMetadataSource):
             # Get current item from queue
             current_item = queue.current_item
             if not current_item:
-                return None
+                return {"is_playing": is_playing, "source": "music_assistant"}
             
             # Extract metadata
             media_item = current_item.media_item

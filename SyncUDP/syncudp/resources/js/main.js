@@ -668,9 +668,20 @@ async function updateLoop() {
 
         // Resolve is_playing for the UI: when MA state is unknown (null), use
         // the heuristic — treat as "playing" unless MA previously said "paused".
-        const resolvedIsPlaying = trackInfo.is_playing === true ? true
+        let resolvedIsPlaying = trackInfo.is_playing === true ? true
             : trackInfo.is_playing === false ? false
             : !maConfirmedPause;
+
+        // During the play/pause settle window the poll may read stale MA state.
+        // Use the optimistic state recorded on button click instead so UI elements
+        // (icon, lyrics, timecode) pause/resume immediately in sync.
+        if (isInPlayPauseSettle()) {
+            const optimistic = getPlayPauseOptimisticPlaying();
+            if (optimistic !== null) {
+                resolvedIsPlaying = optimistic;
+            }
+        }
+
         updateControlState({ ...trackInfo, is_playing: resolvedIsPlaying });
 
         // Next-up preview card - show in last 30 seconds of song
@@ -705,22 +716,15 @@ async function updateLoop() {
         // Check for line-sync outro (triggers visual mode after 6s delay)
         checkForLineSyncOutro(data);
 
-        // Manage sync animations based on resolved playback state.
-        // resolvedIsPlaying combines the real MA state with the maConfirmedPause
-        // heuristic so animations start correctly on app launch even before MA
-        // has returned an explicit state.
+        // Track confirmed MA state to inform the heuristic above
         if (trackInfo.is_playing === false) {
             maConfirmedPause = true;
         } else if (trackInfo.is_playing === true) {
             maConfirmedPause = false;
         }
-        // During the play/pause settle window the poll may read stale MA state.
-        // Use the optimistic state recorded on button click instead so lyrics
-        // and timecode pause/resume immediately in sync with the icon.
-        const effectiveIsPlaying = isInPlayPauseSettle()
-            ? (getPlayPauseOptimisticPlaying() ?? resolvedIsPlaying)
-            : resolvedIsPlaying;
-        if (effectiveIsPlaying) {
+        
+        // Manage sync animations based on the unified playback state
+        if (resolvedIsPlaying) {
             startWordSyncAnimation();
             startLineSyncAnimation();
         } else {

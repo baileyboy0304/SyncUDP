@@ -347,21 +347,15 @@ export function updateControlState(trackInfo) {
     if (nextBtn) nextBtn.disabled = !canControl;
     if (playPauseBtn) {
         playPauseBtn.disabled = !canControl;
-        // Skip icon update while inside the settle window.  The optimistic flip
-        // that ran in the click handler already shows the correct icon; overwriting
-        // it here with stale MA state (poll runs every 100ms, MA propagates in
-        // 200-500ms) would revert the button back to the wrong state.
-        if (!isInPlayPauseSettle()) {
-            const isPlaying = trackInfo.is_playing === true;
-            const icon = playPauseBtn.querySelector('i');
-            if (icon) {
-                if (isPlaying) {
-                    icon.className = 'bi bi-pause-fill';
-                    playPauseBtn.title = 'Pause';
-                } else {
-                    icon.className = 'bi bi-play-fill';
-                    playPauseBtn.title = 'Play';
-                }
+        const isPlaying = trackInfo.is_playing === true;
+        const icon = playPauseBtn.querySelector('i');
+        if (icon) {
+            if (isPlaying) {
+                icon.className = 'bi bi-pause-fill';
+                playPauseBtn.title = 'Pause';
+            } else {
+                icon.className = 'bi bi-play-fill';
+                playPauseBtn.title = 'Play';
             }
         }
     }
