@@ -590,17 +590,18 @@ class MusicAssistantSource(BaseMetadataSource):
         
         # Ensure connected
         if not await _ensure_connected_nonblocking():
+            logger.info("MA get_metadata: returning None because not connected")
             return None
         
         try:
             # Get target player
             player_id = self._resolve_player_id()
             if not player_id:
+                logger.info("MA get_metadata: returning None because no player_id resolved")
                 # Rate limit this log to avoid spam
                 global _last_no_player_log
                 now = time.time()
                 if now - _last_no_player_log >= LOG_THROTTLE_INTERVAL:
-                    logger.debug("No Music Assistant player available")
                     _last_no_player_log = now
                 return None
             
@@ -609,16 +610,19 @@ class MusicAssistantSource(BaseMetadataSource):
             # Get player state
             player = _client.players.get(player_id)
             if not player:
+                logger.info(f"MA get_metadata: returning None because player {player_id} not found in client")
                 return None
             
             # Get active queue
             queue_id = await _get_active_queue_id(player_id)
             if not queue_id:
-                return None
+                logger.debug(f"MA get_metadata: no queue found for player {player_id}")
+                return {"is_playing": False, "source": "music_assistant"}
             
             queue = _client.player_queues.get(queue_id)
             if not queue:
-                return None
+                logger.debug(f"MA get_metadata: queue {queue_id} not found in client")
+                return {"is_playing": False, "source": "music_assistant"}
             
             # Check queue state (use queue.state for consistency with corrected_elapsed_time)
             queue_state = _state_str(queue.state)
@@ -743,11 +747,11 @@ class MusicAssistantSource(BaseMetadataSource):
             return result
             
         except Exception as e:
+            logger.info(f"MA get_metadata: returning None due to exception: {e}", exc_info=True)
             # Rate limit metadata error log
             global _last_metadata_error_log
             now = time.time()
             if now - _last_metadata_error_log >= LOG_THROTTLE_INTERVAL:
-                logger.debug(f"Music Assistant metadata fetch failed: {e}")
                 _last_metadata_error_log = now
             # Don't set _connected = False here - that causes reconnect spam
             # Connection errors are handled by start_listening task
