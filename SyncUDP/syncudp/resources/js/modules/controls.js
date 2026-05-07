@@ -51,6 +51,25 @@ let previewPositionMs = null;
 let seekTooltip = null;
 const SEEK_DEBOUNCE_MS = 150;  // Match waveform (faster since drag prevents spam)
 
+// ========== PLAY/PAUSE SETTLE WINDOW ==========
+// After a play/pause click the MA WebSocket state takes 200-500ms to propagate.
+// The 100ms poll loop would otherwise read stale "playing" state and revert the
+// optimistic icon flip.  We suppress icon + animation changes for 700ms so the
+// poll always sees the settled MA state before acting.
+let _playPauseClickTime = 0;
+let _playPauseOptimisticPlaying = null; // null = no active optimistic state
+const PLAY_PAUSE_SETTLE_MS = 700;
+
+/** Returns true if we're within the post-click settle window. */
+export function isInPlayPauseSettle() {
+    return Date.now() - _playPauseClickTime < PLAY_PAUSE_SETTLE_MS;
+}
+
+/** Returns the optimistic is_playing value recorded on the last click. */
+export function getPlayPauseOptimisticPlaying() {
+    return _playPauseOptimisticPlaying;
+}
+
 // ========== VISUAL MODE CALLBACKS ==========
 // Stored during attachControlHandlers for use by toggleArtOnlyMode
 let _enterVisualModeFn = null;
@@ -149,6 +168,10 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
             // Optimistic update: flip icon immediately so the button feels responsive
             const icon = playPauseBtn.querySelector('i');
             const wasShowingPause = icon?.classList.contains('bi-pause-fill');
+            // Record settle window so poll loop doesn't revert the optimistic state
+            // before MA WebSocket has propagated the new playback state (200-500ms).
+            _playPauseClickTime = Date.now();
+            _playPauseOptimisticPlaying = !wasShowingPause; // was PAUSE → now paused (false); was PLAY → now playing (true)
             if (icon) {
                 icon.className = wasShowingPause ? 'bi bi-play-fill' : 'bi bi-pause-fill';
                 playPauseBtn.title = wasShowingPause ? 'Play' : 'Pause';
@@ -324,15 +347,21 @@ export function updateControlState(trackInfo) {
     if (nextBtn) nextBtn.disabled = !canControl;
     if (playPauseBtn) {
         playPauseBtn.disabled = !canControl;
-        const isPlaying = trackInfo.is_playing === true;
-        const icon = playPauseBtn.querySelector('i');
-        if (icon) {
-            if (isPlaying) {
-                icon.className = 'bi bi-pause-fill';
-                playPauseBtn.title = 'Pause';
-            } else {
-                icon.className = 'bi bi-play-fill';
-                playPauseBtn.title = 'Play';
+        // Skip icon update while inside the settle window.  The optimistic flip
+        // that ran in the click handler already shows the correct icon; overwriting
+        // it here with stale MA state (poll runs every 100ms, MA propagates in
+        // 200-500ms) would revert the button back to the wrong state.
+        if (!isInPlayPauseSettle()) {
+            const isPlaying = trackInfo.is_playing === true;
+            const icon = playPauseBtn.querySelector('i');
+            if (icon) {
+                if (isPlaying) {
+                    icon.className = 'bi bi-pause-fill';
+                    playPauseBtn.title = 'Pause';
+                } else {
+                    icon.className = 'bi bi-play-fill';
+                    playPauseBtn.title = 'Play';
+                }
             }
         }
     }
@@ -801,10 +830,16 @@ export async function fetchAndRenderQueue() {
                 // "Play from here" on click
                 if (track.queue_index !== undefined) {
                     item.title = 'Play from here';
+                    item.style.cursor = 'pointer';
                     item.addEventListener('click', async () => {
                         item.style.opacity = '0.4';
                         try {
-                            const result = await playQueueItem(track.queue_index);
+                            // Prefer queue_item_id (stable UUID) over positional
+                            // index — more reliable with recent MA server versions.
+                            const result = await playQueueItem(
+                                track.queue_index,
+                                track.queue_item_id || null,
+                            );
                             if (result && result.error) {
                                 showToast('Failed to play track', 'error');
                                 item.style.opacity = '';
@@ -814,6 +849,7 @@ export async function fetchAndRenderQueue() {
                             }
                         } catch (e) {
                             console.error('Play queue item failed:', e);
+                            showToast('Failed to play track', 'error');
                             item.style.opacity = '';
                         }
                     });

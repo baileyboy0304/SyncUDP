@@ -2134,8 +2134,9 @@ async def play_queue_at_index():
     queue_index = data.get('queue_index')
     if queue_index is None:
         return jsonify({"error": "queue_index required"}), 400
+    queue_item_id = data.get('queue_item_id') or None
     ma_source = await _music_assistant_source_for_controls()
-    success = await ma_source.play_queue_item(int(queue_index))
+    success = await ma_source.play_queue_item(int(queue_index), queue_item_id=queue_item_id)
     if not success:
         return _ma_failure_response("queue play-index", ma_source)
     return jsonify({"status": "success"})

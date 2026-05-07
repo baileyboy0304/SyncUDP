@@ -64,7 +64,9 @@ import {
     toggleLike,
     setupTouchControls,
     attachProgressBarSeek,
-    toggleArtOnlyMode
+    toggleArtOnlyMode,
+    isInPlayPauseSettle,
+    getPlayPauseOptimisticPlaying
 } from './modules/controls.js';
 
 // Background (Level 2)
@@ -712,7 +714,13 @@ async function updateLoop() {
         } else if (trackInfo.is_playing === true) {
             maConfirmedPause = false;
         }
-        if (resolvedIsPlaying) {
+        // During the play/pause settle window the poll may read stale MA state.
+        // Use the optimistic state recorded on button click instead so lyrics
+        // and timecode pause/resume immediately in sync with the icon.
+        const effectiveIsPlaying = isInPlayPauseSettle()
+            ? (getPlayPauseOptimisticPlaying() ?? resolvedIsPlaying)
+            : resolvedIsPlaying;
+        if (effectiveIsPlaying) {
             startWordSyncAnimation();
             startLineSyncAnimation();
         } else {
