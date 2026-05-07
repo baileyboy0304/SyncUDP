@@ -172,6 +172,9 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
             // before MA WebSocket has propagated the new playback state (200-500ms).
             _playPauseClickTime = Date.now();
             _playPauseOptimisticPlaying = !wasShowingPause; // was PAUSE → now paused (false); was PLAY → now playing (true)
+            
+            console.log(`[Controls] Play/Pause clicked! optimisticPlaying=${_playPauseOptimisticPlaying}`);
+            
             if (icon) {
                 icon.className = wasShowingPause ? 'bi bi-play-fill' : 'bi bi-pause-fill';
                 playPauseBtn.title = wasShowingPause ? 'Play' : 'Pause';
@@ -350,6 +353,10 @@ export function updateControlState(trackInfo) {
         const isPlaying = trackInfo.is_playing === true;
         const icon = playPauseBtn.querySelector('i');
         if (icon) {
+            const targetClass = isPlaying ? 'bi bi-pause-fill' : 'bi bi-play-fill';
+            if (icon.className !== targetClass) {
+                console.log(`[Controls] Changing icon from ${icon.className} to ${targetClass} (isPlaying: ${isPlaying})`);
+            }
             if (isPlaying) {
                 icon.className = 'bi bi-pause-fill';
                 playPauseBtn.title = 'Pause';

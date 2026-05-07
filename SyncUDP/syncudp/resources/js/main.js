@@ -675,11 +675,20 @@ async function updateLoop() {
         // During the play/pause settle window the poll may read stale MA state.
         // Use the optimistic state recorded on button click instead so UI elements
         // (icon, lyrics, timecode) pause/resume immediately in sync.
+        let usingOptimistic = false;
         if (isInPlayPauseSettle()) {
             const optimistic = getPlayPauseOptimisticPlaying();
             if (optimistic !== null) {
                 resolvedIsPlaying = optimistic;
+                usingOptimistic = true;
             }
+        }
+
+        // Add logging to track state changes
+        if (window._lastResolvedIsPlaying !== resolvedIsPlaying) {
+            console.log(`[Playback State] resolvedIsPlaying changed: ${window._lastResolvedIsPlaying} -> ${resolvedIsPlaying}. ` +
+                        `(raw trackInfo.is_playing: ${trackInfo.is_playing}, maConfirmedPause: ${maConfirmedPause}, usingOptimistic: ${usingOptimistic})`);
+            window._lastResolvedIsPlaying = resolvedIsPlaying;
         }
 
         updateControlState({ ...trackInfo, is_playing: resolvedIsPlaying });

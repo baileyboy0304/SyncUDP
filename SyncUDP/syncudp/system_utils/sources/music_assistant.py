@@ -624,10 +624,15 @@ class MusicAssistantSource(BaseMetadataSource):
             queue_state = _state_str(queue.state)
             player_state = _state_str(player.playback_state)
 
-            logger.debug(
-                "MA state: queue_state=%r player_state=%r player_id=%r",
-                queue_state, player_state, player_id,
-            )
+            # Log state changes to help debug flicker
+            global _last_logged_ma_state
+            if not hasattr(MusicAssistantSource, '_last_logged_ma_state'):
+                MusicAssistantSource._last_logged_ma_state = None
+                
+            current_state_tuple = (queue_state, player_state, queue.current_item is not None)
+            if MusicAssistantSource._last_logged_ma_state != current_state_tuple:
+                logger.info(f"MA state changed: queue_state={queue_state}, player_state={player_state}, has_current_item={current_state_tuple[2]}")
+                MusicAssistantSource._last_logged_ma_state = current_state_tuple
             
             # Determine staleness: how long since MA last updated the position
             # This distinguishes "just paused" from "stale session data from hours ago"
