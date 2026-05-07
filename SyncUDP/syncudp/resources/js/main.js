@@ -89,6 +89,7 @@ import {
 import {
     startSlideshow,
     stopSlideshow,
+    resetSlideshowForTrackChange,
     initSlideshow,
     setupSlideshowButton,
     handleArtistChange as handleSlideshowArtistChange,
@@ -593,6 +594,11 @@ async function updateLoop() {
                 resetImageIndex();
                 resetManualImageFlag();  // Clear manual image selection when artist changes
                 lastArtistId = newArtistId;
+
+                // CRITICAL: Immediately stop slideshow and clear all DOM images
+                // before fetching new artist images. Without this, old artist's
+                // slideshow images remain visible during the async fetch.
+                resetSlideshowForTrackChange();
 
                 // Only clear and refetch images when artist changes
                 // Cancel any pending image retry for old artist

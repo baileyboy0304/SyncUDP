@@ -590,6 +590,41 @@ export function stopSlideshow() {
 }
 
 /**
+ * Immediately reset slideshow for artist/track change.
+ * Unlike stopSlideshow() which fades gracefully, this instantly removes all
+ * slideshow DOM elements and clears the image pool so no stale artist images
+ * remain visible during the transition to a new artist.
+ */
+export function resetSlideshowForTrackChange() {
+    // Stop the cycling interval
+    if (slideshowInterval) {
+        clearInterval(slideshowInterval);
+        setSlideshowInterval(null);
+    }
+    
+    if (resumeTimer) {
+        clearTimeout(resumeTimer);
+        resumeTimer = null;
+    }
+    
+    // Cancel any pending cleanup from a previous stop (prevent race condition)
+    if (cleanupTimer) {
+        clearTimeout(cleanupTimer);
+        cleanupTimer = null;
+    }
+    
+    // Immediately remove all slideshow images from DOM (no fade)
+    clearSlideshowImages();
+    
+    // Clear the image pool so no stale images are shown
+    setSlideshowImagePool([]);
+    setCurrentSlideIndex(0);
+    
+    setSlideshowPaused(false);
+    console.log('[Slideshow] Reset for track change (immediate clear)');
+}
+
+/**
  * Pause slideshow (for manual browsing or background tab)
  * 
  * @param {string} reason - 'manual' or 'background'
