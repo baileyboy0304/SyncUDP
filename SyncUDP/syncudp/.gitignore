@@ -152,6 +152,25 @@ spicylyrics full_project_code.txt
 *.ttf
 *.mp3
 *.wav
+
+# --- Bundled static assets required at runtime (must be committed) ---
+# Bootstrap Icons font
+!resources/css/fonts/bootstrap-icons.woff
+!resources/css/fonts/bootstrap-icons.woff2
+# Phosphor Icons fill font
+!resources/css/phosphor/Phosphor-Fill.woff
+!resources/css/phosphor/Phosphor-Fill.woff2
+# Bundled Google Fonts (served locally, no external CDN calls)
+!resources/fonts/
+!resources/fonts/**
+!resources/fonts/bundled/
+!resources/fonts/bundled/**
+# Application icons and static images
+!resources/images/icon.ico
+!resources/images/icon-192.png
+!resources/images/icon-512.png
+!resources/images/icon-maskable.png
+!resources/images/github.png
 node_modules/
 dist/
 build/
