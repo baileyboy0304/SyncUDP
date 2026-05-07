@@ -153,22 +153,22 @@ setupControlCenter();  // Setup control center event handlers
 function updateWordSyncToggleUI() {
     const toggleBtn = document.getElementById('btn-word-sync-toggle');
     if (!toggleBtn) return;
-    
+
     // SVG icon doesn't need class changes - use button's active/inactive classes instead
     // The SVG inherits color from the button via currentColor
-    
+
     // Update active class (only active when enabled AND current provider has word-sync)
     toggleBtn.classList.toggle('active', wordSyncEnabled && hasWordSync);
-    
+
     // When disabled but available, add inactive class for visual feedback
     toggleBtn.classList.toggle('inactive', !wordSyncEnabled && anyProviderHasWordSync);
-    
+
     // Update unavailable class: toggle is available if ANY provider has word-sync
     // This allows user to enable word-sync even if current provider doesn't have it
     const isUnavailable = !anyProviderHasWordSync;
     toggleBtn.classList.toggle('unavailable', isUnavailable);
     toggleBtn.disabled = isUnavailable;  // Actually disable button to prevent interaction
-    
+
     // Also sync the settings checkbox
     const checkbox = document.getElementById('opt-word-sync');
     if (checkbox) {
@@ -213,26 +213,26 @@ async function updateNextUpCard(trackInfo) {
         const now = Date.now();
         const isNewSong = nextUpTrackId !== trackInfo.track_id;
         const canRetry = (now - nextUpLastFetchAttempt) > NEXT_UP_RETRY_DELAY_MS;
-        
+
         if (isNewSong || (!nextUpCardVisible && canRetry)) {
             nextUpLastFetchAttempt = now;
             try {
                 const queueData = await fetchQueue();
                 if (queueData && queueData.queue && queueData.queue.length > 0) {
                     const nextTrack = queueData.queue[0];
-                    
+
                     // Populate card
                     const artEl = document.getElementById('next-up-art');
                     const titleEl = document.getElementById('next-up-title');
                     const artistEl = document.getElementById('next-up-artist');
-                    
+
                     if (artEl && nextTrack.album && nextTrack.album.images) {
                         const artUrl = nextTrack.album.images[1]?.url || nextTrack.album.images[0]?.url || '';
                         artEl.src = artUrl;
                     }
                     if (titleEl) titleEl.textContent = nextTrack.name || 'Unknown';
                     if (artistEl) artistEl.textContent = nextTrack.artists?.[0]?.name || 'Unknown';
-                    
+
                     card.classList.remove('hidden');
                     nextUpCardVisible = true;
                     nextUpTrackId = trackInfo.track_id;
@@ -277,17 +277,17 @@ let outroVisualModeTimer = null;
 function checkForLineSyncOutro(lyricsData) {
     if (!visualModeConfig.enabled) return;
     if (visualModeActive) return; // Already in visual mode
-    
+
     // Check if lyrics show "End" (outro state)
     const lyrics = lyricsData?.lyrics || lyricsData;
-    const isOutro = Array.isArray(lyrics) && 
-                    lyrics.length >= 2 && 
-                    lyrics[1] === 'End';
-    
+    const isOutro = Array.isArray(lyrics) &&
+        lyrics.length >= 2 &&
+        lyrics[1] === 'End';
+
     if (isOutro && !outroVisualModeTriggered) {
         console.log(`[Main] Line-sync outro detected, scheduling visual mode in ${OUTRO_VISUAL_MODE_DELAY_SEC}s`);
         outroVisualModeTriggered = true;
-        
+
         outroVisualModeTimer = setTimeout(() => {
             if (!visualModeActive) {
                 console.log('[Main] Line-sync outro delay elapsed, entering visual mode');
@@ -327,42 +327,42 @@ function resetOutroState() {
  */
 async function retryImageFetch(artistId, artistName) {
     imageRetryTimer = null;  // Clear reference
-    
+
     // Guard 1: Artist still current? (use artist_id if available, otherwise artist name)
     const currentArtistId = lastTrackInfo?.artist_id;
     const currentArtistName = lastTrackInfo?.artist;
-    const artistMatch = artistId 
+    const artistMatch = artistId
         ? (currentArtistId === artistId)
         : (currentArtistName === artistName);
-    
+
     if (!artistMatch) {
         console.log('[Main] Image retry cancelled: artist changed');
         return;
     }
-    
+
     // Guard 2: Already have images? (modal or another source may have loaded them)
     if (currentArtistImages.length > 0) {
         console.log('[Main] Image retry cancelled: images already loaded');
         return;
     }
-    
+
     console.log('[Main] Retrying artist image fetch for:', artistId || artistName);
-    
+
     try {
         const data = await fetchArtistImages(artistId, true);
-        
+
         // Guard 3: Artist still current after fetch?
         const newCurrentArtistId = lastTrackInfo?.artist_id;
         const newCurrentArtistName = lastTrackInfo?.artist;
-        const stillMatch = artistId 
+        const stillMatch = artistId
             ? (newCurrentArtistId === artistId)
             : (newCurrentArtistName === artistName);
-        
+
         if (!stillMatch) {
             console.log('[Main] Image retry discarded: artist changed during fetch');
             return;
         }
-        
+
         if (data.images?.length > 0) {
             setCurrentArtistImages(data.images);
             setCurrentArtistImageMetadata(data.metadata || []);
@@ -410,11 +410,23 @@ async function updateLoop() {
             continue;
         }
 
-        // Fetch track info and lyrics in parallel
-        const [trackInfo, data] = await Promise.all([
-            getCurrentTrack(),
+        // Fetch track info first so UI updates immediately without waiting for lyrics
+        const trackInfo = await getCurrentTrack();
+
+        // Fetch lyrics asynchronously so it doesn't block the UI update loop
+        if (!window._isFetchingLyrics) {
+            window._isFetchingLyrics = true;
             getLyrics(updateBackground, updateThemeColor, updateProviderDisplay)
-        ]);
+                .then(fetchedData => {
+                    window._lastFetchedLyricsData = fetchedData;
+                })
+                .catch(err => console.error('[Main] Lyrics fetch error:', err))
+                .finally(() => {
+                    window._isFetchingLyrics = false;
+                });
+        }
+
+        const data = window._lastFetchedLyricsData || null;
 
         setLastCheckTime(Date.now());
 
@@ -500,6 +512,9 @@ async function updateLoop() {
             console.log(`[Main] Track changed: ${lastTrackId} -> ${trackId}`);
             lastTrackId = trackId;
             maConfirmedPause = false;  // Re-assume playing for new track
+            
+            // Clear cached lyrics immediately so old lyrics don't bleed into new track
+            window._lastFetchedLyricsData = null;
 
             // Reset visual mode on track change
             resetVisualModeState();
@@ -537,7 +552,7 @@ async function updateLoop() {
                 resetImageIndex();
                 resetManualImageFlag();  // Clear manual image selection when artist changes
                 lastArtistId = newArtistId;
-                
+
                 // Only clear and refetch images when artist changes
                 // Cancel any pending image retry for old artist
                 if (imageRetryTimer) {
@@ -558,10 +573,10 @@ async function updateLoop() {
                         // Use artist_id if available, otherwise compare artist name
                         const currentArtistId = lastTrackInfo?.artist_id;
                         const currentArtistName = lastTrackInfo?.artist;
-                        const artistMatch = artistIdAtFetch 
+                        const artistMatch = artistIdAtFetch
                             ? (currentArtistId === artistIdAtFetch)
                             : (currentArtistName === artistNameAtFetch);
-                        
+
                         if (!artistMatch) {
                             console.log('[Main] Artist changed during image fetch, discarding stale data');
                             return;
@@ -570,15 +585,15 @@ async function updateLoop() {
                         // Art mode will access album art from lastTrackInfo when needed
                         setCurrentArtistImages(data.images || []);
                         setCurrentArtistImageMetadata(data.metadata || []);
-                        
+
                         // Schedule ONE retry if no images found (backend may still be downloading)
                         if ((data.images || []).length === 0) {
-                            console.log(`[Main] No artist images found, scheduling retry in ${IMAGE_RETRY_DELAY_MS/1000}s`);
+                            console.log(`[Main] No artist images found, scheduling retry in ${IMAGE_RETRY_DELAY_MS / 1000}s`);
                             imageRetryTimer = setTimeout(() => {
                                 retryImageFetch(artistIdAtFetch, artistNameAtFetch);
                             }, IMAGE_RETRY_DELAY_MS);
                         }
-                        
+
                         // Update slideshow image pool and restart if enabled
                         loadImagePoolForCurrentArtist();
                         // Slideshow should continue/restart with new images
@@ -586,10 +601,10 @@ async function updateLoop() {
                     });
                 }
             }
-            
+
             // Notify slideshow of artist change (handles same artist vs different artist logic)
             handleSlideshowArtistChange(trackInfo.artist || '', sameArtist);
-            
+
             // Safety net: Only restart slideshow if it stopped unexpectedly
             // If slideshow is already running (!slideshowInterval = false), leave it alone
             // This prevents unnecessary re-shuffle and image change on track skip
@@ -623,7 +638,7 @@ async function updateLoop() {
         if (sourceChanged) {
             console.log(`[Main] Source changed: ${lastSource} -> ${currentSource}`);
             lastSource = currentSource;
-            
+
             // Reset waveform and spectrum on source change
             // (audio analysis data is source-specific)
             resetWaveform();
@@ -632,7 +647,7 @@ async function updateLoop() {
 
         // Update track info (must happen before icon update)
         setLastTrackInfo(trackInfo);
-        
+
         // Apply background style with priority: Saved Preference > URL Params > Default
         // Only apply saved style if user has opted-in to art background via URL or settings
         const hasArtBgEnabled = displayConfig.artBackground || displayConfig.softAlbumArt || displayConfig.sharpAlbumArt;
@@ -670,7 +685,7 @@ async function updateLoop() {
         // the heuristic — treat as "playing" unless MA previously said "paused".
         let resolvedIsPlaying = trackInfo.is_playing === true ? true
             : trackInfo.is_playing === false ? false
-            : !maConfirmedPause;
+                : !maConfirmedPause;
 
         // During the play/pause settle window the poll may read stale MA state.
         // Use the optimistic state recorded on button click instead so UI elements
@@ -687,7 +702,7 @@ async function updateLoop() {
         // Add logging to track state changes
         if (window._lastResolvedIsPlaying !== resolvedIsPlaying) {
             console.log(`[Playback State] resolvedIsPlaying changed: ${window._lastResolvedIsPlaying} -> ${resolvedIsPlaying}. ` +
-                        `(raw trackInfo.is_playing: ${trackInfo.is_playing}, maConfirmedPause: ${maConfirmedPause}, usingOptimistic: ${usingOptimistic})`);
+                `(raw trackInfo.is_playing: ${trackInfo.is_playing}, maConfirmedPause: ${maConfirmedPause}, usingOptimistic: ${usingOptimistic})`);
             window._lastResolvedIsPlaying = resolvedIsPlaying;
         }
 
@@ -731,7 +746,7 @@ async function updateLoop() {
         } else if (trackInfo.is_playing === true) {
             maConfirmedPause = false;
         }
-        
+
         // Manage sync animations based on the unified playback state
         if (resolvedIsPlaying) {
             startWordSyncAnimation();
@@ -740,11 +755,11 @@ async function updateLoop() {
             stopWordSyncAnimation();
             stopLineSyncAnimation();
         }
-        
+
         // Update word-sync toggle button UI state (icon, unavailable class)
         // This ensures button reflects current hasWordSync state after each poll
         updateWordSyncToggleUI();
-        
+
         // Update main UI latency controls visibility
         updateMainLatencyVisibility();
 
@@ -760,7 +775,7 @@ async function updateLoop() {
 async function main() {
     // Mark document as JS-ready immediately to reveal content (FOUC prevention)
     document.documentElement.classList.add('js-ready');
-    
+
     console.log('[Main] Initializing SyncLyrics...');
 
     // Load config first
@@ -834,20 +849,20 @@ async function main() {
     if (wordSyncToggleBtn) {
         // Initialize button state
         updateWordSyncToggleUI();
-        
+
         wordSyncToggleBtn.addEventListener('click', () => {
             const newState = !wordSyncEnabled;
             setWordSyncEnabled(newState);
-            
+
             // Update toggle button AND settings checkbox
             updateWordSyncToggleUI();
-            
+
             // Update main UI latency controls visibility
             updateMainLatencyVisibility();
-            
+
             // Save to localStorage for persistence
             localStorage.setItem('wordSyncEnabled', newState);
-            
+
             // Start/stop word-sync animation based on new state
             if (newState && hasWordSync) {
                 stopLineSyncAnimation();  // Stop line-sync when word-sync takes over
@@ -858,7 +873,7 @@ async function main() {
                 startLineSyncAnimation();  // Start line-sync when word-sync is disabled
                 console.log('[WordSync] Disabled via toggle');
             }
-            
+
             // Update URL without page reload
             // Since default is now false, we set explicit param for both states
             const url = new URL(window.location.href);
@@ -869,7 +884,7 @@ async function main() {
             }
             history.replaceState(null, '', url.toString());
         });
-        
+
         // Load from localStorage (URL param takes precedence via initializeDisplay)
         const savedState = localStorage.getItem('wordSyncEnabled');
         if (savedState !== null && !new URLSearchParams(window.location.search).has('wordSync')) {
@@ -885,7 +900,7 @@ async function main() {
     setupLatencyKeyboardShortcuts();
     initLatencyPositioning();  // Dynamic positioning relative to provider badge
     setupLatencyUIToggle();    // Toggle button for main UI visibility
-    
+
     // Listen for word-sync outro event to trigger visual mode
     // When lyrics finish, auto-enter visual mode for songs with long instrumental outros
     // Gated by visualModeConfig.enabled to respect user settings
@@ -902,7 +917,7 @@ async function main() {
 
     // Start the main loop
     updateLoop();
-    
+
     // Mark initialization as fully complete (for watchdog)
     // This is separate from js-ready which is set early for FOUC prevention
     document.documentElement.classList.add('js-init-complete');
@@ -914,7 +929,7 @@ async function main() {
     const MAX_RETRIES = 3;
     const TIMEOUT_MS = 10000; // 10 seconds - generous for slow networks
     const retries = parseInt(sessionStorage.getItem('js-init-retries') || '0', 10);
-    
+
     setTimeout(() => {
         // Check js-init-complete (set at END of main), not js-ready (set at START)
         // This catches: module load failures, init crashes, stuck async operations
@@ -971,18 +986,18 @@ function initDebugOverlay() {
     if (urlParams.get('debug') === 'timing') {
         enableDebugOverlay();
     }
-    
+
     // Setup triple-tap gesture on lyrics container
     const lyricsContainer = document.querySelector('.lyrics-container');
     if (lyricsContainer) {
         let tapCount = 0;
         let lastTapTime = 0;
         const TAP_THRESHOLD = 500; // 500ms window for triple-tap
-        
+
         lyricsContainer.addEventListener('click', (e) => {
             // Don't trigger on control buttons
             if (e.target.closest('button') || e.target.closest('.control')) return;
-            
+
             const now = Date.now();
             if (now - lastTapTime > TAP_THRESHOLD) {
                 tapCount = 1;
@@ -990,7 +1005,7 @@ function initDebugOverlay() {
                 tapCount++;
             }
             lastTapTime = now;
-            
+
             if (tapCount === 3) {
                 toggleDebugOverlay();
                 tapCount = 0;
@@ -1004,7 +1019,7 @@ function initDebugOverlay() {
  */
 function enableDebugOverlay() {
     setDebugTimingEnabled(true);
-    
+
     // Create overlay element if doesn't exist
     if (!document.getElementById('debug-timing-overlay')) {
         const overlay = document.createElement('div');
@@ -1013,10 +1028,10 @@ function enableDebugOverlay() {
         overlay.innerHTML = '<div class="debug-row">Loading...</div>';
         document.body.appendChild(overlay);
     }
-    
+
     document.getElementById('debug-timing-overlay').style.display = 'block';
     console.log('[Debug] Timing overlay enabled');
-    
+
     // Start update loop for when word-sync is not active
     startDebugUpdateLoop();
 }
@@ -1050,12 +1065,12 @@ function toggleDebugOverlay() {
 function startDebugUpdateLoop() {
     function updateLoop() {
         if (!debugTimingEnabled) return;
-        
+
         // Only update if word-sync animation isn't handling it
         if (!wordSyncEnabled || !hasWordSync) {
             updateDebugOverlay();
         }
-        
+
         requestAnimationFrame(updateLoop);
     }
     requestAnimationFrame(updateLoop);

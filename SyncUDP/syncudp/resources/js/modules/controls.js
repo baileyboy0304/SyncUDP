@@ -111,7 +111,7 @@ export function toggleArtOnlyMode() {
  */
 function debouncedSeek(positionMs) {
     if (seekTimeout) clearTimeout(seekTimeout);
-    
+
     seekTimeout = setTimeout(async () => {
         console.log(`[ProgressBar] Seeking to ${formatTime(positionMs / 1000)} (${positionMs}ms)`);
         try {
@@ -172,9 +172,9 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
             // before MA WebSocket has propagated the new playback state (200-500ms).
             _playPauseClickTime = Date.now();
             _playPauseOptimisticPlaying = !wasShowingPause; // was PAUSE → now paused (false); was PLAY → now playing (true)
-            
+
             console.log(`[Controls] Play/Pause clicked! optimisticPlaying=${_playPauseOptimisticPlaying}`);
-            
+
             if (icon) {
                 icon.className = wasShowingPause ? 'bi bi-play-fill' : 'bi bi-pause-fill';
                 playPauseBtn.title = wasShowingPause ? 'Play' : 'Pause';
@@ -225,7 +225,7 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
         // Store callbacks at module level for toggleArtOnlyMode
         _enterVisualModeFn = enterVisualModeFn;
         _exitVisualModeFn = exitVisualModeFn;
-        
+
         // Long-press state
         let longPressTimer = null;
         let isLongPress = false;
@@ -275,7 +275,7 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
         const CORNER_SIZE = 100;           // pixels from corner
         const CORNER_HOLD_DURATION = 450; // ms
         const EDGE_TAP_SIZE = 50;         // pixels from left/right edge for image switching
-        
+
         let cornerExitTimer = null;
 
         const isInCorner = (x, y) => {
@@ -300,7 +300,7 @@ export function attachControlHandlers(enterVisualModeFn = null, exitVisualModeFn
 
         const handleCornerPress = (x, y) => {
             if (!document.body.classList.contains('art-only-mode')) return;
-            
+
             if (isInCorner(x, y)) {
                 cornerExitTimer = setTimeout(() => {
                     if (document.body.classList.contains('art-only-mode')) {
@@ -394,7 +394,7 @@ export function updateProgress(trackInfo) {
 
     // Calculate percent (handle duration_ms = 0 gracefully)
     const durationMs = trackInfo.duration_ms || 0;
-    const percent = durationMs > 0 
+    const percent = durationMs > 0
         ? Math.min(100, (trackInfo.position * 1000 / durationMs) * 100)
         : 0;  // No progress if duration unknown
     if (fill) fill.style.width = `${percent}%`;
@@ -415,7 +415,7 @@ export function attachProgressBarSeek() {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
     if (!progressBar) return;
-    
+
     // Create tooltip element if it doesn't exist
     if (!seekTooltip) {
         seekTooltip = document.createElement('div');
@@ -437,11 +437,11 @@ export function attachProgressBarSeek() {
         `;
         document.body.appendChild(seekTooltip);
     }
-    
+
     // Make it clickable
     progressBar.style.cursor = 'pointer';
     progressBar.style.touchAction = 'none';  // Prevent touch scrolling on the bar
-    
+
     // Get client position from mouse or touch event
     const getClientPos = (e) => {
         if (e.touches && e.touches.length > 0) {
@@ -452,7 +452,7 @@ export function attachProgressBarSeek() {
         }
         return { x: e.clientX, y: e.clientY };
     };
-    
+
     // Calculate seek position from client coordinates
     const calculateSeekPosition = (clientX) => {
         const rect = progressBar.getBoundingClientRect();
@@ -460,7 +460,7 @@ export function attachProgressBarSeek() {
         const duration = lastTrackInfo?.duration_ms || 0;
         return percent * duration;  // Return in ms
     };
-    
+
     // Show tooltip at position
     const showTooltip = (clientX, clientY, positionMs) => {
         const timeStr = formatTime(positionMs / 1000);
@@ -471,12 +471,12 @@ export function attachProgressBarSeek() {
         const offset = isDragging ? 50 : 35;
         seekTooltip.style.top = `${clientY - offset}px`;
     };
-    
+
     // Hide tooltip
     const hideTooltip = () => {
         seekTooltip.style.display = 'none';
     };
-    
+
     // Update visual preview during drag
     const updateVisualPreview = (positionMs) => {
         if (!progressFill) return;
@@ -485,16 +485,16 @@ export function attachProgressBarSeek() {
         const percent = Math.min(100, (positionMs / duration) * 100);
         progressFill.style.width = `${percent}%`;
     };
-    
+
     // Track if we already sought (to prevent click from also firing after drag)
     let didSeek = false;
-    
+
     // ========== POINTER START (mousedown / touchstart) ==========
     const handlePointerStart = (e) => {
         const duration = lastTrackInfo?.duration_ms || 0;
         if (!duration) return;
         e.preventDefault();
-        
+
         const pos = getClientPos(e);
         isDragging = true;
         didSeek = false;
@@ -502,18 +502,18 @@ export function attachProgressBarSeek() {
         showTooltip(pos.x, pos.y, previewPositionMs);
         updateVisualPreview(previewPositionMs);
     };
-    
+
     // ========== POINTER MOVE (mousemove / touchmove) ==========
     const handlePointerMove = (e) => {
         const duration = lastTrackInfo?.duration_ms || 0;
         if (!duration) return;
-        
+
         const pos = getClientPos(e);
         const hoverPositionMs = calculateSeekPosition(pos.x);
-        
+
         // Always show tooltip on move (hover or drag)
         showTooltip(pos.x, pos.y, hoverPositionMs);
-        
+
         // Update visual preview if dragging
         if (isDragging) {
             e.preventDefault();
@@ -521,72 +521,72 @@ export function attachProgressBarSeek() {
             updateVisualPreview(previewPositionMs);
         }
     };
-    
+
     // ========== POINTER END (mouseup / touchend) ==========
     const handlePointerEnd = (e) => {
         const duration = lastTrackInfo?.duration_ms || 0;
         if (!duration) return;
-        
+
         if (isDragging && previewPositionMs !== null) {
             debouncedSeek(previewPositionMs);
             didSeek = true;
         }
-        
+
         isDragging = false;
         previewPositionMs = null;
         hideTooltip();
     };
-    
+
     // ========== POINTER CANCEL (touchcancel) ==========
     const handlePointerCancel = () => {
         isDragging = false;
         previewPositionMs = null;
         hideTooltip();
     };
-    
+
     // ========== MOUSE LEAVE ==========
     const handleMouseLeave = () => {
         if (!isDragging) {
             hideTooltip();
         }
     };
-    
+
     // ========== CLICK (for simple tap/click without drag) ==========
     const handleClick = (e) => {
         const duration = lastTrackInfo?.duration_ms || 0;
         if (!duration) return;
-        
+
         // Skip if we already seeked via drag
         if (didSeek) {
             didSeek = false;
             return;
         }
-        
+
         const pos = getClientPos(e);
         const positionMs = calculateSeekPosition(pos.x);
         debouncedSeek(positionMs);
     };
-    
+
     // ========== ATTACH PROGRESS BAR EVENTS ==========
     // Mouse events
     progressBar.addEventListener('mousedown', handlePointerStart);
     progressBar.addEventListener('mousemove', handlePointerMove);
     progressBar.addEventListener('mouseleave', handleMouseLeave);
     progressBar.addEventListener('click', handleClick);
-    
+
     // Touch events
     progressBar.addEventListener('touchstart', handlePointerStart, { passive: false });
     progressBar.addEventListener('touchmove', handlePointerMove, { passive: false });
     progressBar.addEventListener('touchend', handlePointerEnd);
     progressBar.addEventListener('touchcancel', handlePointerCancel);
-    
+
     // ========== GLOBAL END EVENTS (for drag completion outside bar) ==========
     document.addEventListener('mouseup', (e) => {
         if (isDragging) {
             handlePointerEnd(e);
         }
     });
-    
+
     document.addEventListener('touchend', (e) => {
         if (isDragging) {
             handlePointerEnd(e);
@@ -646,15 +646,15 @@ export function updateAlbumArt(trackInfo, updateBackgroundFn = null) {
         // This prevents flicker when enrichment replaces remote URL with local /cover-art URL
         const currentArtKey = trackInfo.album_art_path || trackInfo.album_art_url;
         const lastArtKey = lastAlbumArtPath || lastAlbumArtUrl;
-        
+
         // Check if the art is the same - if so, skip reload but still run visibility logic
         const artUnchanged = (currentArtKey && currentArtKey === lastArtKey);
-        
+
         if (artUnchanged) {
             // FIX 1: Cancel any pending loads from intermediate skips (e.g. A -> B -> A)
             // If we are back to the "stable" image, we don't want a pending "B" image to overwrite it later.
             setPendingArtUrl(null);
-            
+
             // FIX 2: Ensure opacity is 1 (could be 0 if transition was interrupted)
             albumArt.style.opacity = '1';
             albumArt.style.display = displayConfig.showAlbumArt ? 'block' : 'none';
@@ -813,7 +813,7 @@ export async function fetchAndRenderQueue() {
             const isMobile = window.matchMedia('(max-width: 600px)').matches;
             const maxItems = isMobile ? 13 : data.queue.length;
             const displayQueue = data.queue.slice(0, maxItems);
-            
+
             displayQueue.forEach(track => {
                 const item = document.createElement('div');
                 item.className = 'queue-item';
@@ -918,7 +918,7 @@ export async function toggleLike() {
     // Get track ID - use Spotify id or MA ma_item_id
     const trackId = lastTrackInfo?.id || lastTrackInfo?.ma_item_id;
     const source = lastTrackInfo?.source || '';
-    
+
     if (!lastTrackInfo || !trackId) return;
 
     // Optimistic update
@@ -993,13 +993,13 @@ let volumePopupOpen = false;
 export function setupVolumePopup() {
     const volumeBtn = document.getElementById('btn-volume');
     const popup = document.getElementById('volume-popup');
-    
+
     if (!volumeBtn || !popup) return;
-    
+
     // Toggle popup on button click
     volumeBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        
+
         if (volumePopupOpen) {
             toggleVolumePopup(false);
         } else {
@@ -1008,7 +1008,7 @@ export function setupVolumePopup() {
             toggleVolumePopup(true);
         }
     });
-    
+
     // Setup sliders with debounced input
     popup.querySelectorAll('.volume-slider').forEach(slider => {
         slider.addEventListener('input', (e) => {
@@ -1016,12 +1016,12 @@ export function setupVolumePopup() {
             const volume = parseInt(e.target.value);
             const valueSpan = e.target.parentElement.querySelector('.volume-value');
             if (valueSpan) valueSpan.textContent = `${volume}%`;
-            
+
             // Debounced API call
             debouncedSetVolume(source, volume);
         });
     });
-    
+
     // Close popup on outside click
     document.addEventListener('click', (e) => {
         if (volumePopupOpen && !popup.contains(e.target) && e.target.id !== 'btn-volume') {
@@ -1036,7 +1036,7 @@ export function setupVolumePopup() {
 function toggleVolumePopup(forceState = null) {
     const popup = document.getElementById('volume-popup');
     if (!popup) return;
-    
+
     volumePopupOpen = forceState !== null ? forceState : !volumePopupOpen;
     popup.classList.toggle('hidden', !volumePopupOpen);
 }
@@ -1070,7 +1070,7 @@ async function refreshVolumeSliders() {
  */
 function debouncedSetVolume(source, volume) {
     if (volumeDebounceTimer) clearTimeout(volumeDebounceTimer);
-    
+
     volumeDebounceTimer = setTimeout(async () => {
         try {
             await apiSetVolume(source, volume);
