@@ -58,7 +58,7 @@ const SEEK_DEBOUNCE_MS = 150;  // Match waveform (faster since drag prevents spa
 // poll always sees the settled MA state before acting.
 let _playPauseClickTime = 0;
 let _playPauseOptimisticPlaying = null; // null = no active optimistic state
-const PLAY_PAUSE_SETTLE_MS = 700;
+const PLAY_PAUSE_SETTLE_MS = 3000;
 
 /** Returns true if we're within the post-click settle window. */
 export function isInPlayPauseSettle() {
