@@ -594,10 +594,10 @@ class MusicAssistantSource(BaseMetadataSource):
             return None
         
         try:
-            # Get target player
-            player_id = self._resolve_player_id()
-            if not player_id:
-                logger.info("MA get_metadata: returning None because no player_id resolved")
+            # 1. Get target player ID
+            target_id = self._resolve_player_id()
+            if not target_id:
+                logger.info("MA get_metadata: returning None because no target_id resolved")
                 # Rate limit this log to avoid spam
                 global _last_no_player_log
                 now = time.time()
@@ -605,24 +605,30 @@ class MusicAssistantSource(BaseMetadataSource):
                     _last_no_player_log = now
                 return None
             
-            _current_player_id = player_id
-            
-            # Get player state
-            player = _client.players.get(player_id)
-            if not player:
-                logger.info(f"MA get_metadata: returning None because player {player_id} not found in client")
-                return None
-            
-            # Get active queue
-            queue_id = await _get_active_queue_id(player_id)
+            # 2. Get active queue for this target. 
+            # This is robust: MA automatically routes child players to their active sync group queue.
+            queue_id = await _get_active_queue_id(target_id)
             if not queue_id:
-                logger.debug(f"MA get_metadata: no queue found for player {player_id}")
+                logger.debug(f"MA get_metadata: no queue found for target {target_id}")
                 return {"is_playing": False, "source": "music_assistant"}
             
             queue = _client.player_queues.get(queue_id)
             if not queue:
                 logger.debug(f"MA get_metadata: queue {queue_id} not found in client")
                 return {"is_playing": False, "source": "music_assistant"}
+                
+            # 3. Get the actual active player object handling playback (e.g., the Sync Group leader).
+            # In MA, queue_id is identical to the player_id of the active coordinator.
+            player = _client.players.get(queue_id)
+            if not player:
+                # Fallback to the original target_id if queue_id doesn't map to a player
+                player = _client.players.get(target_id)
+                
+            if not player:
+                logger.info(f"MA get_metadata: returning None because player for queue {queue_id} not found")
+                return None
+            
+            _current_player_id = player.player_id
             
             # Check queue state (use queue.state for consistency with corrected_elapsed_time)
             queue_state = _state_str(queue.state)
