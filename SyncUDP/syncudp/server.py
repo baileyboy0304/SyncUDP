@@ -647,10 +647,8 @@ async def current_track() -> dict:
                 ma_meta = await MusicAssistantSource(target_player_id=ma_player_id).get_metadata()
                 if ma_meta:
                     # Timeline fields: always override from MA (more accurate than recognition engine)
-                    for key in ("position", "duration_ms", "is_playing"):
-                        value = ma_meta.get(key)
-                        if value is not None:
-                            scoped[key] = value
+                    # EXCEPT for radio streams (where MA position is stream uptime, not track position)
+                    is_radio = ma_meta.get("media_type") == "radio" or not ma_meta.get("duration_ms")
                     
                     # Track identity fields: override from MA so the frontend sees
                     # track changes instantly instead of waiting 10-15s for the
@@ -658,6 +656,18 @@ async def current_track() -> dict:
                     # Only apply if MA has a valid track (artist + title both present).
                     ma_artist = ma_meta.get("artist")
                     ma_title = ma_meta.get("title")
+                    
+                    is_lagging = ma_artist and ma_title and (ma_artist != scoped.get("artist") or ma_title != scoped.get("title"))
+                    
+                    for key in ("position", "duration_ms", "is_playing"):
+                        value = ma_meta.get(key)
+                        if value is not None:
+                            if key == "position" and is_radio:
+                                if is_lagging:
+                                    scoped[key] = 0.0
+                                continue
+                            scoped[key] = value
+                    
                     if ma_artist and ma_title:
                         scoped["artist"] = ma_artist
                         scoped["artist_name"] = ma_meta.get("artist_name") or ma_artist

@@ -268,9 +268,13 @@ async def get_current_song_meta_data() -> Optional[dict]:
                                             result["album_art_url"] = ma_meta.get("album_art_url")
                                             result["album_art"] = ma_meta.get("album_art_url")
                                             
-                                        # Override position so lyrics sync correctly to MA during the lag
-                                        if ma_meta.get("position") is not None:
+                                        # Override position (except for radio streams where MA position is stream uptime)
+                                        is_radio = ma_meta.get("media_type") == "radio" or not ma_meta.get("duration_ms")
+                                        if not is_radio and ma_meta.get("position") is not None:
                                             result["position"] = ma_meta.get("position")
+                                        elif is_radio:
+                                            result["position"] = 0.0
+                                            
                                         if ma_meta.get("duration_ms") is not None:
                                             result["duration_ms"] = ma_meta.get("duration_ms")
                                             
@@ -412,9 +416,13 @@ async def get_current_song_meta_data() -> Optional[dict]:
                                             pm_result["album_art_url"] = ma_meta.get("album_art_url")
                                             pm_result["album_art"] = ma_meta.get("album_art_url")
                                             
-                                        # Override position
-                                        if ma_meta.get("position") is not None:
+                                        # Override position (except for radio streams where MA position is stream uptime)
+                                        is_radio = ma_meta.get("media_type") == "radio" or not ma_meta.get("duration_ms")
+                                        if not is_radio and ma_meta.get("position") is not None:
                                             pm_result["position"] = ma_meta.get("position")
+                                        elif is_radio:
+                                            pm_result["position"] = 0.0
+                                            
                                         if ma_meta.get("duration_ms") is not None:
                                             pm_result["duration_ms"] = ma_meta.get("duration_ms")
                                             

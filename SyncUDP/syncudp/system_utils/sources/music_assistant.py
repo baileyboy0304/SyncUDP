@@ -730,6 +730,14 @@ class MusicAssistantSource(BaseMetadataSource):
                 elif hasattr(media_item, 'uri') and media_item.uri:
                     ma_item_id = str(media_item.uri)
             
+            # Get media type to identify radio streams
+            media_type = "track"
+            if media_item and hasattr(media_item, 'media_type'):
+                # Handle enum if present, otherwise string
+                media_type = media_item.media_type.value if hasattr(media_item.media_type, 'value') else str(media_item.media_type)
+            elif current_item and hasattr(current_item, 'media_type'):
+                media_type = current_item.media_type.value if hasattr(current_item.media_type, 'value') else str(current_item.media_type)
+            
             # Build result
             result = {
                 "track_id": _normalize_track_id(artist, title),
@@ -741,6 +749,7 @@ class MusicAssistantSource(BaseMetadataSource):
                 "position": position,
                 "duration_ms": duration_ms,
                 "is_playing": is_playing,
+                "media_type": media_type,
                 "source": "music_assistant",
                 "colors": ("#24273a", "#363b54"),  # Default, will be enriched
                 "last_active_time": self._last_active_time,
