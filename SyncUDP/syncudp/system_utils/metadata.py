@@ -383,6 +383,47 @@ async def get_current_song_meta_data() -> Optional[dict]:
                             "_player_manager": True,
                             "_player_name": getattr(live_engine, "player_name", None),
                         }
+                        
+                        # ========================================================================
+                        # MUSIC ASSISTANT HYBRID OVERRIDE (For PlayerManager)
+                        # Check if MA knows the track before audio recognition catches up.
+                        # ========================================================================
+                        try:
+                            from .sources import get_source
+                            ma_source = get_source("music_assistant")
+                            if ma_source and getattr(ma_source, "enabled", False) and ma_source.is_available():
+                                ma_meta = await ma_source.get_metadata()
+                                if ma_meta and ma_meta.get("is_playing"):
+                                    ma_artist = ma_meta.get("artist")
+                                    ma_title = ma_meta.get("title")
+                                    rec_artist = pm_result.get("artist")
+                                    rec_title = pm_result.get("title")
+                                    
+                                    if ma_artist and ma_title and (ma_artist != rec_artist or ma_title != rec_title):
+                                        # Override identity fields
+                                        pm_result["artist"] = ma_artist
+                                        pm_result["title"] = ma_title
+                                        pm_result["artist_name"] = ma_meta.get("artist_name") or ma_artist
+                                        pm_result["album"] = ma_meta.get("album") or pm_result.get("album")
+                                        pm_result["track_id"] = ma_meta.get("track_id") or pm_result.get("track_id")
+                                        pm_result["artist_id"] = None
+                                        
+                                        if ma_meta.get("album_art_url"):
+                                            pm_result["album_art_url"] = ma_meta.get("album_art_url")
+                                            pm_result["album_art"] = ma_meta.get("album_art_url")
+                                            
+                                        # Override position
+                                        if ma_meta.get("position") is not None:
+                                            pm_result["position"] = ma_meta.get("position")
+                                        if ma_meta.get("duration_ms") is not None:
+                                            pm_result["duration_ms"] = ma_meta.get("duration_ms")
+                                            
+                                        pm_result["_ma_overridden"] = True
+                                        logger.info(f"Hybrid Override (PM): Fast-forwarding identity to '{ma_artist} - {ma_title}' from Music Assistant")
+                        except Exception as e:
+                            import logging
+                            logging.getLogger(__name__).debug(f"MA hybrid override (PM) failed: {e}")
+
                         cached_result = getattr(get_current_song_meta_data, '_last_result', None)
                         if (cached_result
                                 and cached_result.get('source') == 'audio_recognition'
